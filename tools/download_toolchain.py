@@ -20,9 +20,12 @@ def get_toolchain_package_info():
 
     if country_code == "China":
         host = "https://images.tuyacn.com/smart/embed/package/tuyaopen"
+        host_mac = host
     else:
         host = "https://armkeil.blob.core.windows.net/developer\
 /Files/downloads/gnu-rm/10.3-2021.10"
+        host_mac = "https://developer.arm.com/-/media/Files\
+/downloads/gnu/14.2.rel1/binrel"
 
     if sys_mac == "linux_x86_64":
         name = "gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2"
@@ -32,6 +35,7 @@ def get_toolchain_package_info():
             "size": 157089706,
             "sha256": "97dbb4f019ad1650b732faffcc881689\
 cedc14e2b7ee863d390e0a41ef16c9a3",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     elif sys_mac == "linux_aarch64":
         name = "gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2"
@@ -41,15 +45,27 @@ cedc14e2b7ee863d390e0a41ef16c9a3",
             "size": 168772350,
             "sha256": "f605b5f23ca898e9b8b665be208510a5\
 4a6e9fdd0fa5bfc9592002f6e7431208",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     elif sys_mac == "darwin_x86_64":
-        name = "gcc-arm-none-eabi-10.3-2021.10-mac.tar.bz2"
+        name = "arm-gnu-toolchain-14.2.rel1-darwin-x86_64-arm-none-eabi.tar.xz"
         package_info = {
-            "url": f"{host}/{name}",
+            "url": f"{host_mac}/{name}",
             "name": name,
-            "size": 158961466,
-            "sha256": "fb613dacb25149f140f73fe9ff6c380b\
-b43328e6bf813473986e9127e2bc283b",
+            "size": 145118692,
+            "sha256": "2d9e717dd4f7751d18936ae1365d2591\
+6534105ebcb7583039eff1092b824505",
+            "folder": "arm-gnu-toolchain-14.2.rel1-darwin-x86_64-arm-none-eabi"
+        }
+    elif sys_mac == "darwin_arm64":
+        name = "arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi.tar.xz"
+        package_info = {
+            "url": f"{host_mac}/{name}",
+            "name": name,
+            "size": 134812148,
+            "sha256": "c7c78ffab9bebfce91d99d3c24da6bf4\
+b81c01e16cf551eb2ff9f25b9e0a3818",
+            "folder": "arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi"
         }
     elif sys_mac.startswith("windows"):
         name = "gcc-arm-none-eabi-10.3-2021.10-win32.zip"
@@ -59,6 +75,7 @@ b43328e6bf813473986e9127e2bc283b",
             "size": 200578763,
             "sha256": "d287439b3090843f3f4e29c7c41f81d9\
 58a5323aecefcf705c203bfd8ae3f2e7",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     else:
         print("##############################")
@@ -67,9 +84,6 @@ b43328e6bf813473986e9127e2bc283b",
         print("https://developer.arm.com/downloads/-/gnu-rm")
         print("##############################")
         package_info = {}
-
-    if package_info:
-        package_info["folder"] = "gcc-arm-none-eabi-10.3-2021.10"
 
     return package_info
 
