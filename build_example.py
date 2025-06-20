@@ -235,12 +235,12 @@ def main():
     if not len(param_data):
         sys.exit(1)
 
-    if "windows" == get_system_name():
-        do_with_assets(root, build_root, user_cmd,
-                       target, param_data)
-    else:
+    if "linux" == get_system_name():
         do_with_compile(root, build_root, user_cmd, target,
                         build_param_path, param_data)
+    else:
+        do_with_assets(root, build_root, user_cmd,
+                       target, param_data)
 
     # copy asset
     if not copy_assets(build_root, target, param_data):

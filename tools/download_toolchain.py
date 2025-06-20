@@ -25,7 +25,7 @@ def get_toolchain_package_info():
         host = "https://armkeil.blob.core.windows.net/developer\
 /Files/downloads/gnu-rm/10.3-2021.10"
         host_mac = "https://developer.arm.com/-/media/Files\
-/downloads/gnu/14.2.rel1/binrel"
+/downloads/gnu/13.3.rel1/binrel"
 
     if sys_mac == "linux_x86_64":
         name = "gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2"
@@ -48,24 +48,25 @@ cedc14e2b7ee863d390e0a41ef16c9a3",
             "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     elif sys_mac == "darwin_x86_64":
-        name = "arm-gnu-toolchain-14.2.rel1-darwin-x86_64-arm-none-eabi.tar.xz"
+
+        name = "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi.tar.xz"
         package_info = {
             "url": f"{host_mac}/{name}",
             "name": name,
-            "size": 145118692,
-            "sha256": "2d9e717dd4f7751d18936ae1365d2591\
-6534105ebcb7583039eff1092b824505",
-            "folder": "arm-gnu-toolchain-14.2.rel1-darwin-x86_64-arm-none-eabi"
+            "size": 138514276,
+            "sha256": "1ab00742d1ed0926e6f227df39d767f8\
+efab46f5250505c29cb81f548222d794",
+            "folder": "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi"
         }
     elif sys_mac == "darwin_arm64":
-        name = "arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi.tar.xz"
+        name = "arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi.tar.xz"
         package_info = {
             "url": f"{host_mac}/{name}",
             "name": name,
-            "size": 134812148,
-            "sha256": "c7c78ffab9bebfce91d99d3c24da6bf4\
-b81c01e16cf551eb2ff9f25b9e0a3818",
-            "folder": "arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi"
+            "size": 128649856,
+            "sha256": "fb6921db95d345dc7e5e487dd43b745e\
+3a5b4d5c0c7ca4f707347148760317b4",
+            "folder": "arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi"
         }
     elif sys_mac.startswith("windows"):
         name = "gcc-arm-none-eabi-10.3-2021.10-win32.zip"
@@ -87,6 +88,12 @@ b81c01e16cf551eb2ff9f25b9e0a3818",
 
     return package_info
 
+def _show_progress(block_num, block_size, total_size):
+    downloaded = block_num * block_size
+    progress = min(100, (downloaded / total_size) * 100) if total_size > 0 else 0
+    print(f"\rprogress: {progress:.1f}%", end="")
+    pass
+
 
 def wget_toolchain_package(toolchain_root,
                            package_info) -> bool:
@@ -100,7 +107,7 @@ def wget_toolchain_package(toolchain_root,
 
     print(f"[Downloading package]: {url}")
     try:
-        urllib.request.urlretrieve(url, download_file)
+        urllib.request.urlretrieve(url, download_file, _show_progress)
     except Exception as e:
         print(f"Error: download failed: {str(e)}")
         rm_rf(download_file)

@@ -306,7 +306,15 @@ def do_with_assets(root, build_root, user_cmd,
                            f"{toolchain_prefix}gcc.exe")
         objcopy = os.path.join(toolchain_root,
                                f"{toolchain_prefix}objcopy.exe")
-    else:
+    elif "linux" == get_system_name():
+        gcc = os.path.join(toolchain_root,
+                           f"{toolchain_prefix}gcc")
+        objcopy = os.path.join(toolchain_root,
+                               f"{toolchain_prefix}objcopy")
+    else:  # MacOS
+        toolchain_root = os.path.join(open_root, "platform", "tools",
+                                    "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi",
+                                    "bin")
         gcc = os.path.join(toolchain_root,
                            f"{toolchain_prefix}gcc")
         objcopy = os.path.join(toolchain_root,
