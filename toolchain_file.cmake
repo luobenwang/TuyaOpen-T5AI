@@ -1,7 +1,10 @@
 set(TOOLCHAIN_DIR "${PLATFORM_PATH}/../tools/gcc-arm-none-eabi-10.3-2021.10")
 IF(APPLE)
-    IF(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+    IF(OPEN_SYSTEM_PROCESSOR MATCHES "arm64")
         set(TOOLCHAIN_DIR "${PLATFORM_PATH}/../tools/arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi")
+        # solve gcc error: unrecognized command-line option '-arch'
+        set(CMAKE_SYSTEM_NAME Linux)
+        set(CMAKE_SYSTEM_PROCESSOR ARM)
     ELSE()  # x86_64
         set(TOOLCHAIN_DIR "${PLATFORM_PATH}/../tools/arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi")
     ENDIF()
