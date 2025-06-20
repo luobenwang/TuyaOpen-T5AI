@@ -20,9 +20,12 @@ def get_toolchain_package_info():
 
     if country_code == "China":
         host = "https://images.tuyacn.com/smart/embed/package/tuyaopen"
+        host_mac = host
     else:
         host = "https://armkeil.blob.core.windows.net/developer\
 /Files/downloads/gnu-rm/10.3-2021.10"
+        host_mac = "https://developer.arm.com/-/media/Files\
+/downloads/gnu/13.3.rel1/binrel"
 
     if sys_mac == "linux_x86_64":
         name = "gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2"
@@ -32,6 +35,7 @@ def get_toolchain_package_info():
             "size": 157089706,
             "sha256": "97dbb4f019ad1650b732faffcc881689\
 cedc14e2b7ee863d390e0a41ef16c9a3",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     elif sys_mac == "linux_aarch64":
         name = "gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2"
@@ -41,15 +45,28 @@ cedc14e2b7ee863d390e0a41ef16c9a3",
             "size": 168772350,
             "sha256": "f605b5f23ca898e9b8b665be208510a5\
 4a6e9fdd0fa5bfc9592002f6e7431208",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     elif sys_mac == "darwin_x86_64":
-        name = "gcc-arm-none-eabi-10.3-2021.10-mac.tar.bz2"
+
+        name = "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi.tar.xz"
         package_info = {
-            "url": f"{host}/{name}",
+            "url": f"{host_mac}/{name}",
             "name": name,
-            "size": 158961466,
-            "sha256": "fb613dacb25149f140f73fe9ff6c380b\
-b43328e6bf813473986e9127e2bc283b",
+            "size": 138514276,
+            "sha256": "1ab00742d1ed0926e6f227df39d767f8\
+efab46f5250505c29cb81f548222d794",
+            "folder": "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi"
+        }
+    elif sys_mac == "darwin_arm64":
+        name = "arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi.tar.xz"
+        package_info = {
+            "url": f"{host_mac}/{name}",
+            "name": name,
+            "size": 128649856,
+            "sha256": "fb6921db95d345dc7e5e487dd43b745e\
+3a5b4d5c0c7ca4f707347148760317b4",
+            "folder": "arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi"
         }
     elif sys_mac.startswith("windows"):
         name = "gcc-arm-none-eabi-10.3-2021.10-win32.zip"
@@ -59,6 +76,7 @@ b43328e6bf813473986e9127e2bc283b",
             "size": 200578763,
             "sha256": "d287439b3090843f3f4e29c7c41f81d9\
 58a5323aecefcf705c203bfd8ae3f2e7",
+            "folder": "gcc-arm-none-eabi-10.3-2021.10"
         }
     else:
         print("##############################")
@@ -68,10 +86,13 @@ b43328e6bf813473986e9127e2bc283b",
         print("##############################")
         package_info = {}
 
-    if package_info:
-        package_info["folder"] = "gcc-arm-none-eabi-10.3-2021.10"
-
     return package_info
+
+def _show_progress(block_num, block_size, total_size):
+    downloaded = block_num * block_size
+    progress = min(100, (downloaded / total_size) * 100) if total_size > 0 else 0
+    print(f"\rprogress: {progress:.1f}%", end="")
+    pass
 
 
 def wget_toolchain_package(toolchain_root,
@@ -86,7 +107,7 @@ def wget_toolchain_package(toolchain_root,
 
     print(f"[Downloading package]: {url}")
     try:
-        urllib.request.urlretrieve(url, download_file)
+        urllib.request.urlretrieve(url, download_file, _show_progress)
     except Exception as e:
         print(f"Error: download failed: {str(e)}")
         rm_rf(download_file)

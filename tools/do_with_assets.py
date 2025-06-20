@@ -296,12 +296,27 @@ def do_with_assets(root, build_root, user_cmd,
     os.makedirs(os.path.join(build_root, f"{target}_cp1"), exist_ok=True)
     assets_root = os.path.join(root, "tools", "vendor-t5_for_open")
     open_root = param_data["OPEN_ROOT"]
-    toolchain_root = os.path.join(open_root, "platform", "tools",
-                                  "gcc-arm-none-eabi-10.3-2021.10",
-                                  "bin")
+
+    sys_name = get_system_name()
+
+    if "darwin_x86" == sys_name:
+        toolchain_root = os.path.join(
+            open_root, "platform", "tools",
+            "arm-gnu-toolchain-13.3.rel1-darwin-x86_64-arm-none-eabi",
+            "bin")
+    elif "darwin_arm64" == sys_name:
+        toolchain_root = os.path.join(
+            open_root, "platform", "tools",
+            "arm-gnu-toolchain-13.3.rel1-darwin-arm64-arm-none-eabi",
+            "bin")
+    else:
+        toolchain_root = os.path.join(
+            open_root, "platform", "tools",
+            "gcc-arm-none-eabi-10.3-2021.10",
+            "bin")
     toolchain_prefix = "arm-none-eabi-"
 
-    if "windows" == get_system_name():
+    if "windows" == sys_name:
         gcc = os.path.join(toolchain_root,
                            f"{toolchain_prefix}gcc.exe")
         objcopy = os.path.join(toolchain_root,

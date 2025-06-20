@@ -162,6 +162,9 @@ def extract_archive(file_path: str, dest_dir: str) -> bool:
         elif file_path.endswith('.tar.bz2'):
             with tarfile.open(file_path, 'r:bz2') as tar:
                 tar.extractall(path=dest_dir)
+        elif file_path.endswith('.tar.xz'):
+            with tarfile.open(file_path, 'r:xz') as tar:
+                tar.extractall(path=dest_dir)
         else:
             print(f"Error: extract not support {file_path.suffix}.")
             return False

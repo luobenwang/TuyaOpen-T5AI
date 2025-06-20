@@ -167,3 +167,7 @@
 -lgcc
 -lc
 -lnosys
+-lm
+-lgcc
+-lc
+-lnosys
