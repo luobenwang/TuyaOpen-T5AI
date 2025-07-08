@@ -1327,43 +1327,12 @@ typedef struct {
     uint32_t interval_ms;
 } TUYA_WDOG_BASE_CFG_T;
 
-typedef enum  {
-    TUYA_DISPLAY_RGB = 0,
-    TUYA_DISPLAY_8080,
-    TUYA_DISPLAY_QSPI,
-    TUYA_DISPLAY_SPI,
-}TUYA_DISPLAY_TYPE_E;
-
 typedef enum{
     TUYA_DISPLAY_ROTATION_0,
     TUYA_DISPLAY_ROTATION_90,
     TUYA_DISPLAY_ROTATION_180,
     TUYA_DISPLAY_ROTATION_270,
 }TUYA_DISPLAY_ROTATION_E;
-
-typedef struct {
-    TUYA_GPIO_NUM_E   pin;
-    TUYA_GPIO_LEVEL_E active_level;
-} TUYA_DISPLAY_IO_CTRL_T;
-
-typedef struct {
-    TUYA_PWM_NUM_E       id;
-    TUYA_PWM_BASE_CFG_T  cfg;
-} TUYA_DISPLAY_PWM_CTRL_T;
-
-typedef enum  {
-    TUYA_DISP_BL_TP_NONE,
-    TUYA_DISP_BL_TP_GPIO,
-    TUYA_DISP_BL_TP_PWM,
-}TUYA_DISPLAY_BL_TYPE_E;
-
-typedef struct {
-    TUYA_DISPLAY_BL_TYPE_E    type;
-    union {
-        TUYA_DISPLAY_IO_CTRL_T   gpio;
-        TUYA_DISPLAY_PWM_CTRL_T  pwm;
-    };
-} TUYA_DISPLAY_BL_CTRL_T;
 
 typedef enum  {
     TUYA_DISP_INIT_RST = 0,
@@ -1395,7 +1364,8 @@ typedef enum {
 	TUYA_PIXEL_FMT_RGB565,  
     TUYA_PIXEL_FMT_RGB666,  
 	TUYA_PIXEL_FMT_RGB888,
-    TUYA_PIXEL_FMT_MONOCHROME, /* binary pixel format, 1bit per pixel, 0 is black, 1 is white */  
+    TUYA_PIXEL_FMT_MONOCHROME, /* binary pixel format, 1bit per pixel, 0 is black, 1 is white */ 
+    TUYA_PIXEL_FMT_I2,
 } TUYA_DISPLAY_PIXEL_FMT_E;
 
 typedef enum {
