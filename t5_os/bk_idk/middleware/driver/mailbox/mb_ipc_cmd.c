@@ -26,6 +26,10 @@
 #include "cache.h"
 #endif
 
+#if (CONFIG_USB_CDC_MODEM)
+#include "bk_cherry_usb_cdc_acm_api.h"
+#endif
+
 #define MOD_TAG		"IPC"
 
 #if (CONFIG_CPU_CNT > 1)
@@ -547,6 +551,28 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			}
 			break;
 
+#if (USB_CDC_CP1_IPC)
+		case IPC_USB_CDC_CP0_NOTIFY:
+			{
+				extern void bk_usb_cdc_rcv_notify_cp1(IPC_CDC_DATA_T *p);
+				IPC_CDC_DATA_T *p_cdc_data = (IPC_CDC_DATA_T *)chnl_cb->cmd_buf;
+				bk_usb_cdc_rcv_notify_cp1(p_cdc_data);
+				result = ACK_STATE_COMPLETE;
+			}
+			break;
+#endif
+
+#if (USB_CDC_CP0_IPC)
+		case IPC_USB_CDC_CP1_NOTIFY:
+			{
+				extern void bk_usb_cdc_rcv_notify_cp0(IPC_CDC_DATA_T *p);
+				IPC_CDC_DATA_T *p_cdc_data = (IPC_CDC_DATA_T *)chnl_cb->cmd_buf;
+				bk_usb_cdc_rcv_notify_cp0(p_cdc_data);
+				result = ACK_STATE_COMPLETE;
+			}
+			break;
+#endif
+
 		#if CONFIG_SYS_CPU0
 		case IPC_CPU1_POWER_UP_INDICATION:		// cpu1 indication, power up successfully.
 			{
@@ -979,9 +1005,13 @@ static void mb_ipc_task( void *para )
 		{
 			if(mb_ipc_heartbeat_timeout())
 			{
+				#if !CONFIG_CP1_POWER_ON_WHEN_LV
 				BK_LOGE(MOD_TAG, "IPC core1 timeout\r\n");
 				/*when cpu1 heartbeat timeout, then system reboot*/
-				BK_ASSERT(false);
+				// Modified by TUYA Start
+				// BK_ASSERT(false);
+				// Modified by TUYA End
+				#endif
 			}
 		}
 
@@ -1217,5 +1247,16 @@ u32 ipc_vote_flash_line_mode(u32 v_line_mode)
 }
 
 #endif
+
+
+void ipc_cdc_send_cmd(u8 cmd, u8 *cmd_buf, u16 cmd_len, u8 * rsp_buf, u16 rsp_buf_len)
+{
+	bk_err_t ret_val = BK_FAIL;
+	ret_val = ipc_send_cmd(&ipc_chnl_cb, cmd, (uint8_t *)cmd_buf, cmd_len, (uint8_t *)rsp_buf, rsp_buf_len);
+	if (ret_val != BK_OK)
+	{
+		os_printf("[+]ipc_cdc_send_cmd, ret:%d\r\n", ret_val);
+	}
+}
 
 #endif

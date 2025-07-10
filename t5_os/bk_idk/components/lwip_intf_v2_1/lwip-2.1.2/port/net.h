@@ -41,6 +41,11 @@ extern void bridge_ip_stop(void);
 extern uint32_t bridge_ip_is_start(void);
 extern void *net_get_br_handle(void);
 #endif
+#if CONFIG_LWIP_PPP_SUPPORT
+void *net_get_ppp_netif_handle(void);
+void *net_get_ppp_pcb_handle(void);
+void net_set_ppp_pcb_handle(void *ppp);  
+#endif
 
 #ifdef __cplusplus
 }

@@ -435,7 +435,11 @@ u32_t beken_random(void);
 #define LWIP_DNS                        1
 #define DNS_TABLE_SIZE                  2  // number of table entries, default 4
 //#define DNS_MAX_NAME_LENGTH           64  // max. name length, default 256
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+#define DNS_MAX_SERVERS                 6  // number of DNS servers, default 6
+#else
 #define DNS_MAX_SERVERS                 2  // number of DNS servers, default 2
+#endif
 #define DNS_DOES_NAME_CHECK             1  // compare received name with given,def 0
 #define DNS_MSG_SIZE                    512
 #define MDNS_MSG_SIZE                   512
@@ -617,7 +621,7 @@ The STM32F107 allows computing and verifying the IP, UDP, TCP and ICMP checksums
 #define LWIP_LOGW(...) BK_LOGW(LWIP_TAG, ##__VA_ARGS__)
 #define LWIP_LOGE(...) BK_LOGE(LWIP_TAG, ##__VA_ARGS__)
 #define LWIP_LOGD(...) BK_LOGD(LWIP_TAG, ##__VA_ARGS__)
-#if 0
+#ifdef CONFIG_LWIP_HOOK_IP4_ROUTE_SRC
 #define LWIP_HOOK_FILENAME              "lwip_hooks.h"
 #define LWIP_HOOK_IP4_ROUTE_SRC         ip4_route_src_hook
 #endif
@@ -629,6 +633,51 @@ The STM32F107 allows computing and verifying the IP, UDP, TCP and ICMP checksums
 #define LWIP_NETCONN_FULLDUPLEX 1
 #define BK_LWIP_DEBUG 1
 #endif
+
+/*
+   ---------------------------------
+   ---------- PPP options ----------
+   ---------------------------------
+*/
+
+/**
+ * PPP_SUPPORT==1: Enable PPP.
+ */
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+#define PPP_SUPPORT                     1
+
+/**
+ * PPP_IPV6_SUPPORT == 1: Enable IPV6 support for local link
+ * between modem and lwIP stack.
+ * Some modems do not support IPV6 addressing in local link and
+ * the only option available is to disable IPV6 address negotiation.
+ */
+#define PPP_IPV6_SUPPORT                               0
+
+/**
+ * PPP_NOTIFY_PHASE==1: Support PPP notify phase.
+ */
+#define PPP_NOTIFY_PHASE                1
+
+/**
+ * PAP_SUPPORT==1: Support PAP.
+ */
+#define PAP_SUPPORT                     1
+
+/**
+ * PPP_MAXIDLEFLAG: Max Xmit idle time (in ms) before resend flag char.
+ * TODO: If PPP_MAXIDLEFLAG > 0 and next package is send during PPP_MAXIDLEFLAG time,
+ *       then 0x7E is not added at the begining of PPP package but 0x7E termination
+ *       is always at the end. This behaviour brokes PPP dial with GSM (PPPoS).
+ *       The PPP package should always start and end with 0x7E.
+ */
+
+#define PPP_MAXIDLEFLAG                 0
+
+/*PPP DEBUG*/
+//#define PRINTPKT_SUPPORT                1
+//#define PPP_PROTOCOLNAME                1
+#endif  /* CONFIG_LWIP_PPP_SUPPORT */
 
 #endif /* __LWIPOPTS_H__ */
 

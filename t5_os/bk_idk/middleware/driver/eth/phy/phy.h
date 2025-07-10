@@ -146,6 +146,7 @@ struct phy_device {
 	int duplex;
 
 	/* The most recently read link state */
+	unsigned int last_link:1;
 	unsigned int link:1;
 	unsigned int autoneg_complete:1;
 	int port;

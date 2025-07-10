@@ -115,21 +115,25 @@ struct netif *tkl_lwip_get_netif_by_index(int netif_idx)
 OPERATE_RET tkl_ethernetif_init(TKL_NETIF_HANDLE netif)
 {
     OPERATE_RET ret;
-	struct ipc_msg_s lwip_ipc_msg = {0};
+    struct netif *pnetif = netif;
+    pnetif->output = etharp_output;
+    pnetif->linkoutput = (netif_linkoutput_fn)tkl_ethernetif_output;
+
+    struct ipc_msg_s lwip_ipc_msg = {0};
 
     lwip_ipc_msg.type = TKL_IPC_TYPE_LWIP;
     lwip_ipc_msg.subtype = TKL_IPC_TYPE_LWIP_INIT;
-	lwip_ipc_msg.req_param = netif;
-	lwip_ipc_msg.req_len = 4;
+    lwip_ipc_msg.req_param = netif;
+    lwip_ipc_msg.req_len = 4;
 
     if (lwip_send_sem == NULL) {
         ret = tkl_semaphore_create_init(&lwip_send_sem, 0, 1);
-        if(ret)
+        if (ret)
             return ret;
     }
 
     ret = tuya_ipc_send_sync(&lwip_ipc_msg);
-    if(ret)
+    if (ret)
         return ret;
 
     return lwip_ipc_msg.ret_value;
@@ -144,26 +148,27 @@ OPERATE_RET tkl_ethernetif_init(TKL_NETIF_HANDLE netif)
  */
 OPERATE_RET tkl_ethernetif_output(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
 {
-	struct ipc_msg_s lwip_ipc_msg = {0};
+    // if(4g)
+    // bk_printf("--- 1 trace %s %d\r\n", __func__, __LINE__);
+    struct ipc_msg_s lwip_ipc_msg = {0};
     lwip_ipc_msg.type = TKL_IPC_TYPE_LWIP;
     lwip_ipc_msg.subtype = TKL_IPC_TYPE_LWIP_SEND;
 
-	struct ipc_msg_param_s param = {0};
+    struct ipc_msg_param_s param = {0};
     param.p1 = netif;
     param.p2 = p;
 
-	lwip_ipc_msg.req_param = (uint8_t *)&param;
-	lwip_ipc_msg.req_len = sizeof(struct ipc_msg_param_s);
+    lwip_ipc_msg.req_param = (uint8_t *)&param;
+    lwip_ipc_msg.req_len = sizeof(struct ipc_msg_param_s);
 
     //  tuya_ipc_send_no_sync(&lwip_ipc_msg);
 
     int ret = tuya_ipc_send_sync(&lwip_ipc_msg);
-    if(ret)
+    if (ret)
         return ret;
 
+    // bk_printf("--- 1 trace %s %d\r\n", __func__, __LINE__);
     return lwip_ipc_msg.ret_value;
-
-
 }
 
 /**
@@ -175,14 +180,12 @@ OPERATE_RET tkl_ethernetif_output(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
  */
 OPERATE_RET tkl_ethernetif_recv(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
 {
-	struct netif *pnetif = netif;
-	if (pnetif->input(p, pnetif) != ERR_OK) {
-		pbuf_free(p);
-		p = NULL;
-		return -1;
-	}
+    struct netif *pnetif = netif;
+    if (pnetif->input(p, pnetif) != ERR_OK) {
+        pbuf_free(p);
+        p = NULL;
+        return -1;
+    }
 
-	return 0;
+    return 0;
 }
-
-

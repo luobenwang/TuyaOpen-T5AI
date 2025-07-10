@@ -100,6 +100,17 @@ pbuf_skip_const(const struct pbuf *in, u16_t in_offset, u16_t *out_offset);
 #else /* !LWIP_TCP || !TCP_QUEUE_OOSEQ || !PBUF_POOL_FREE_OOSEQ */
 
 #define PBUF_POOL_FREE_OOSEQ_QUEUE_CALL()
+// #if !NO_SYS
+// #ifndef PBUF_POOL_FREE_OOSEQ_QUEUE_CALL
+// #include "lwip/tcpip.h"
+// #define PBUF_POOL_FREE_OOSEQ_QUEUE_CALL()  do { \
+//   if (tcpip_try_callback(pbuf_free_ooseq_callback, NULL) != ERR_OK) { \
+//       SYS_ARCH_PROTECT(old_level); \
+//       pbuf_free_ooseq_pending = 0; \
+//       SYS_ARCH_UNPROTECT(old_level); \
+//   } } while(0)
+// #endif /* PBUF_POOL_FREE_OOSEQ_QUEUE_CALL */
+// #endif /* !NO_SYS */
 
 volatile u8_t pbuf_free_ooseq_pending;
 #define PBUF_POOL_IS_EMPTY() pbuf_pool_is_empty()
@@ -901,7 +912,6 @@ pbuf_length_get(void *p,u32_t *size)
   }
   else if (alloc_src == PBUF_TYPE_ALLOC_SRC_MASK_STD_MEMP_PBUF)
   {
-    extern u32_t get_mem_size(void *rmem);
     len = get_mem_size(p);
     if(len > SIZEOF_STRUCT_PBUF)
       *size = len - SIZEOF_STRUCT_PBUF;

@@ -116,8 +116,8 @@ menu "Bk_usb"
 			bool "Enable Usb Hid"
 			default n
 
-		config USB_CCD
-			bool "Enable Usb Ccd"
+		config USB_CDC
+			bool "Enable Usb Cdc"
 			default n
 
 		config USB_UVC
@@ -145,6 +145,9 @@ menu "Bk_usb"
 			bool "Enable Usb Charge"
 			default n
 
+		config USBH_SERIAL_CH340
+			bool "Enable Usbh simulate serial ch340"
+			default n
 	endmenu
 
 	menu "Modify USB Demo Config"
@@ -196,5 +199,11 @@ menu "Bk_usb"
         range 1 2
         default 1 if !STANDARD_DUALSTREAM
         default 2 if STANDARD_DUALSTREAM
+
+    config USB_CDC_MODEM
+        bool "Enable device usb cdc for 4G module"
+        help
+            This macro needs to be opened on cp0 and cp1 when USB in cp1.
+        default n
 
 endmenu

@@ -46,6 +46,11 @@ enum
 	IPC_CPU1_TRAP_HANDLE_BEGIN,             /* CPU1 -> CPU0  */
 	IPC_CPU1_TRAP_HANDLE_END,               /* CPU1 -> CPU0  */
 
+/////////////////////////////////////////
+	IPC_USB_CDC_CP0_NOTIFY,   // CP0 -> CP1
+	IPC_USB_CDC_CP1_NOTIFY,   // CP1 -> CP0
+/////////////////////////////////////////
+
 	IPC_CMD_MAX  = 0x7F,  /* cmd id can NOT great than 0x7F. */
 };
 

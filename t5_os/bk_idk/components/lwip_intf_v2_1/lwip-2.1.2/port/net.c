@@ -113,6 +113,10 @@ struct iface {
 	ip_addr_t nmask;
 	ip_addr_t gw;
 	const char *name;
+#if CONFIG_LWIP_PPP_SUPPORT
+	//for ppp
+	void *arg;
+#endif
 };
 FUNCPTR sta_connected_func;
 
@@ -124,6 +128,10 @@ static struct iface g_eth = {{.name = "e0",}, .name = "eth"};
 #if CONFIG_BRIDGE
 static struct iface g_br = {{.name = "br"}, .name = "br"};
 #endif
+#if CONFIG_LWIP_PPP_SUPPORT
+static struct iface g_ppp = {{0}, .name = "ppp"};
+#endif
+
 net_sta_ipup_cb_fn sta_ipup_cb = NULL;
 
 extern void *net_get_sta_handle(void);
@@ -437,6 +445,23 @@ void *net_get_br_handle(void)
 }
 #endif
 
+#if CONFIG_LWIP_PPP_SUPPORT
+void *net_get_ppp_netif_handle(void)
+{
+	return &g_ppp.netif;
+}
+
+void *net_get_ppp_pcb_handle(void)
+{
+	return g_ppp.arg;
+}
+
+void net_set_ppp_pcb_handle(void *ppp)
+{
+	g_ppp.arg = ppp;
+}
+#endif
+
 void *net_get_netif_handle(uint8_t iface)
 {
 	return NULL;
@@ -479,6 +504,12 @@ void sta_ip_down(void)
 		for (u8_t addr_idx = 1; addr_idx < LWIP_IPV6_NUM_ADDRESSES; addr_idx++) {
 			netif_ip6_addr_set(&g_mlan.netif, addr_idx, (const ip6_addr_t *)IP6_ADDR_ANY);
 			g_mlan.netif.ip6_addr_state[addr_idx] = IP6_ADDR_INVALID;
+		}
+#endif
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+		struct netif *ppp_netif = (struct netif *)net_get_ppp_netif_handle();
+		if (ppp_netif && netif_is_up(ppp_netif)) {
+			netifapi_netif_set_default(ppp_netif);
 		}
 #endif
 	}
@@ -581,6 +612,13 @@ void ap_set_default_netif(void)
 #if (IP_FORWARD && IP_NAPT)
 	if (netif_is_up(&g_eth.netif) && netif_is_link_up(&g_eth.netif))
 		netifapi_netif_set_default(&g_eth.netif);
+#endif
+#endif
+
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+#if (IP_FORWARD && IP_NAPT)
+	if (netif_is_up(&g_ppp.netif) && netif_is_link_up(&g_ppp.netif))
+		netifapi_netif_set_default(&g_ppp.netif);
 #endif
 #endif
 }
