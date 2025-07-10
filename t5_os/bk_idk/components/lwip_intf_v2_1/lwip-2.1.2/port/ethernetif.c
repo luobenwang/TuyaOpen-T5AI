@@ -35,7 +35,6 @@
 
 #if CONFIG_ETH
 #include <string.h>
-#include "lwip/opt.h"
 #include "lwip/timeouts.h"
 #include "lwip/tcpip.h"
 #include "lwip/ethip6.h"
@@ -51,10 +50,13 @@
 #include "driver/int.h"
 #include "gpio_driver.h"
 #include "lwip/netifapi.h"
+#include "lwipopts.h"
+#include "lwip/opt.h"
 #include "net.h"
 #include "sys_hal.h"
 #include "miiphy.h"
 #include "os/mem.h"
+#include "tkl_system.h"
 
 #define ETH_MULTI_PHY_SUPPORT  1
 
@@ -62,8 +64,8 @@
 /* Stack size of the interface thread */
 #define INTERFACE_THREAD_STACK_SIZE ( 1024 )
 /* Network interface name */
-#define IFNAME0 's'
-#define IFNAME1 't'
+#define IFNAME0 'r'
+#define IFNAME1 '2'
 
 /* ETH Setting  */
 #define ETH_DMA_TRANSMIT_TIMEOUT               ( 20U )
@@ -110,6 +112,7 @@ typedef struct
   uint8_t buff[(ETH_RX_BUFFER_SIZE + 31) & ~31] __ALIGNED(32);
 } RxBuff_t;
 
+typedef int (*eth_link_status_cb)(u8_t event_id);
 
 enum {
   BMSG_NULL_TYPE = 0,
@@ -117,6 +120,11 @@ enum {
   BMSG_TX_TYPE,
   BMSG_TX_COMPLETE,
   BMSG_PS_KEEP_END,
+};
+
+enum {
+  ETH_LINK_DOWN = 0,
+  ETH_LINK_UP,
 };
 
 typedef struct bus_message {
@@ -177,6 +185,9 @@ extern int32_t xTaskGetTickCount( void );
 volatile int32_t bmsg_eth_rx_count = 0;
 volatile int32_t bmsg_eth_tx_compl_count = 0;
 
+eth_link_status_cb eth_link_changed_cb = NULL;
+extern OPERATE_RET ethernetif_recv_in_eth(void* netif, void* p);
+
 /* Global Ethernet handle */
 static ETH_HandleTypeDef heth;
 
@@ -207,6 +218,12 @@ static lan8742_IOCtx_t  LAN8742_IOCtx = {ETH_PHY_IO_Init,
 /* Private functions ---------------------------------------------------------*/
 static void pbuf_free_custom(struct pbuf *p);
 static void ethernetif_input(void* argument);
+
+/* Public functions ---------------------------------------------------------*/
+err_t ethernetif_init(struct netif *netif);
+void ethernet_link_changed_register_cb(eth_link_status_cb cb);
+void ethernet_link_thread(void *argument);
+err_t ethernetif_tx_sender(struct netif *netif, struct pbuf *p);
 
 /**
   * @brief  Ethernet Rx Transfer completed callback
@@ -317,6 +334,8 @@ int eqos_mdio_reset(struct mii_dev *bus)
  * @param netif the already initialized lwip network interface structure
  *        for this ethernetif
  */
+#include "tuya_cloud_types.h"
+#include "tkl_wifi.h"
 static bk_err_t low_level_init(struct netif *netif)
 {
   HAL_StatusTypeDef hal_eth_init_status = HAL_OK;
@@ -334,8 +353,11 @@ static bk_err_t low_level_init(struct netif *netif)
 
   /* Start ETH HAL Init */
   heth.Instance = ETH;
-  bk_get_mac(priv->mac, MAC_TYPE_ETH);
+  // bk_get_mac(priv->mac, MAC_TYPE_ETH);
+  tkl_wifi_get_mac(0, priv->mac);
+  priv->mac[5] += 3;
   heth.Init.MACAddr = priv->mac;
+
   heth.Init.MediaInterface = HAL_ETH_RMII_MODE;
   heth.Init.TxDesc = DMATxDscrTab;
   heth.Init.RxDesc = DMARxDscrTab;
@@ -403,6 +425,7 @@ static bk_err_t low_level_init(struct netif *netif)
     // phy_set_supported();
     phy_config(priv->phy);  // genphy_config
     phy_startup(priv->phy); // genphy_startup
+    priv->phy->link = 0;
   }
 #else // ETH_MULTI_PHY_SUPPORT
   /* Set PHY IO functions */
@@ -536,6 +559,11 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
   return bmsg_eth_tx_sender(p);
 }
 
+err_t ethernetif_tx_sender(struct netif *netif, struct pbuf *p)
+{
+  return low_level_output(netif, p);
+}
+
 /**
  * Should allocate a pbuf and transfer the bytes of the incoming
  * packet from the interface into the pbuf.
@@ -657,8 +685,7 @@ static void bmsg_eth_rx_handler(BUS_MSG_T *msg, struct netif *netif)
   do {
     p = low_level_input(netif);
     if (p != NULL) {
-      if (netif->input(p, netif) != ERR_OK)
-        pbuf_free(p);
+      ethernetif_recv_in_eth(netif, p);
 
       // ....
       if (++processed > ETH_RX_FRAME_PREP_THD) {
@@ -889,42 +916,6 @@ err_t ethernetif_init(struct netif *netif)
 {
   LWIP_ASSERT("netif != NULL", (netif != NULL));
 
-#if LWIP_NETIF_HOSTNAME
-  /* Initialize interface hostname */
-  netif->hostname = "lwip";
-#endif /* LWIP_NETIF_HOSTNAME */
-
-  /*
-   * Initialize the snmp variables and counters inside the struct netif.
-   * The last argument should be replaced with your link speed, in units
-   * of bits per second.
-   */
-  // MIB2_INIT_NETIF(netif, snmp_ifType_ethernet_csmacd, LINK_SPEED_OF_YOUR_NETIF_IN_BPS);
-
-  netif->name[0] = IFNAME0;
-  netif->name[1] = IFNAME1;
-  /* We directly use etharp_output() here to save a function call.
-   * You can instead declare your own function an call etharp_output()
-   * from it if you have to do some checks before sending (e.g. if link
-   * is available...) */
-
-#if LWIP_IPV4
-#if LWIP_ARP || LWIP_ETHERNET
-#if LWIP_ARP
-  netif->output = etharp_output;
-#else
-  /* The user should write its own code in low_level_output_arp_off function */
-  netif->output = low_level_output_arp_off;
-#endif /* LWIP_ARP */
-#endif /* LWIP_ARP || LWIP_ETHERNET */
-#endif /* LWIP_IPV4 */
-
-#if LWIP_IPV6
-  netif->output_ip6 = ethip6_output;
-#endif /* LWIP_IPV6 */
-
-  netif->linkoutput = low_level_output;
-
   /* initialize the hardware */
   return low_level_init(netif);
 }
@@ -1033,59 +1024,66 @@ static int __HAL_ETH_Exit_LP()
 }
 #endif // CONFIG_ETH_PM_CB_SUPPORT
 
+// Modified by TUYA Start
+#include "tkl_wired.h"
+// Modified by TUYA End
 void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 {
+// Modified by TUYA Start
+#if 1
   //LWIP_LOGI("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
   //LWIP_LOGI("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
 
-  // GPIO PinMUX: group0(27, 29-39), or group2(46-55)
+  // GPIO PinMUX
   // FIXME: BK7236, use dts instead of hard coding.
-#ifdef CONFIG_ETH_PIN_GROUP0
-  gpio_dev_unmap(GPIO_27);  // PHY INT
-  gpio_dev_unmap(GPIO_29);  // MDC
-  gpio_dev_unmap(GPIO_32);  // MDIO
-  gpio_dev_unmap(GPIO_33);  // RXD[0]
-  gpio_dev_unmap(GPIO_34);  // RXD[1]
-  gpio_dev_unmap(GPIO_35);  // RXDV
-  gpio_dev_unmap(GPIO_36);  // TXD[0]
-  gpio_dev_unmap(GPIO_37);  // TXD[1]
-  gpio_dev_unmap(GPIO_38);  // TXEN
-  gpio_dev_unmap(GPIO_39);  // REF_CLK
+  extern WIRED_IOCTL_GPIO_T *tkl_wired_get_config(void);
+  WIRED_IOCTL_GPIO_T *pcfg = tkl_wired_get_config();
 
-  gpio_dev_map(GPIO_27, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_29, GPIO_DEV_ENET_MDC);
-  gpio_dev_map(GPIO_32, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_33, GPIO_DEV_ENET_RXD0);
-  gpio_dev_map(GPIO_34, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_35, GPIO_DEV_ENET_RXDV);
-  gpio_dev_map(GPIO_36, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_37, GPIO_DEV_ENET_TXD1);
-  gpio_dev_map(GPIO_38, GPIO_DEV_ENET_TXEN);
-  gpio_dev_map(GPIO_39, GPIO_DEV_ENET_REF_CLK);
-#elif defined(CONFIG_ETH_PIN_GROUP1)
-  // group2(46-55)
+  gpio_dev_unmap(pcfg->rmii.int_gpio);  // PHY INT
+  gpio_dev_unmap(pcfg->rmii.mdc_gpio);  // MDC
+  gpio_dev_unmap(pcfg->rmii.mdio_gpio);  // MDIO
+  gpio_dev_unmap(pcfg->rmii.rxd0_gpio);  // RXD[0]
+  gpio_dev_unmap(pcfg->rmii.rxd1_gpio);  // RXD[1]
+  gpio_dev_unmap(pcfg->rmii.rxdv_gpio);  // RXDV
+  gpio_dev_unmap(pcfg->rmii.txd0_gpio);  // TXD[0]
+  gpio_dev_unmap(pcfg->rmii.txd1_gpio);  // TXD[1]
+  gpio_dev_unmap(pcfg->rmii.txen_gpio);  // TXEN
+  gpio_dev_unmap(pcfg->rmii.ref_clk_gpio);  // REF_CLK
+
+  gpio_dev_map(pcfg->rmii.int_gpio, GPIO_DEV_ENET_PHY_INT);
+  gpio_dev_map(pcfg->rmii.mdc_gpio, GPIO_DEV_ENET_MDC);
+  gpio_dev_map(pcfg->rmii.mdio_gpio, GPIO_DEV_ENET_MDIO);
+  gpio_dev_map(pcfg->rmii.rxd0_gpio, GPIO_DEV_ENET_RXD0);
+  gpio_dev_map(pcfg->rmii.rxd1_gpio, GPIO_DEV_ENET_RXD1);
+  gpio_dev_map(pcfg->rmii.rxdv_gpio, GPIO_DEV_ENET_RXDV);
+  gpio_dev_map(pcfg->rmii.txd0_gpio, GPIO_DEV_ENET_TXD0);
+  gpio_dev_map(pcfg->rmii.txd1_gpio, GPIO_DEV_ENET_TXD1);
+  gpio_dev_map(pcfg->rmii.txen_gpio, GPIO_DEV_ENET_TXEN);
+  gpio_dev_map(pcfg->rmii.ref_clk_gpio, GPIO_DEV_ENET_REF_CLK);
+#else
   gpio_dev_unmap(GPIO_46);  // PHY INT
-  gpio_dev_unmap(GPIO_47);  // MDC
+  gpio_dev_unmap(GPIO_29);  // MDC
   gpio_dev_unmap(GPIO_48);  // MDIO
-  gpio_dev_unmap(GPIO_49);  // RXD[0]
+  gpio_dev_unmap(GPIO_33);  // RXD[0]
   gpio_dev_unmap(GPIO_50);  // RXD[1]
-  gpio_dev_unmap(GPIO_51);  // RXDV
+  gpio_dev_unmap(GPIO_35);  // RXDV
   gpio_dev_unmap(GPIO_52);  // TXD[0]
-  gpio_dev_unmap(GPIO_53);  // TXD[1]
+  gpio_dev_unmap(GPIO_37);  // TXD[1]
   gpio_dev_unmap(GPIO_54);  // TXEN
   gpio_dev_unmap(GPIO_55);  // REF_CLK
 
   gpio_dev_map(GPIO_46, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_47, GPIO_DEV_ENET_MDC);
+  gpio_dev_map(GPIO_29, GPIO_DEV_ENET_MDC);
   gpio_dev_map(GPIO_48, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_RXD0);
+  gpio_dev_map(GPIO_33, GPIO_DEV_ENET_RXD0);
   gpio_dev_map(GPIO_50, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_51, GPIO_DEV_ENET_RXDV);
+  gpio_dev_map(GPIO_35, GPIO_DEV_ENET_RXDV);
   gpio_dev_map(GPIO_52, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_53, GPIO_DEV_ENET_TXD1);
+  gpio_dev_map(GPIO_37, GPIO_DEV_ENET_TXD1);
   gpio_dev_map(GPIO_54, GPIO_DEV_ENET_TXEN);
   gpio_dev_map(GPIO_55, GPIO_DEV_ENET_REF_CLK);
 #endif
+// Modified by TUYA End
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
   // Power On AHBP
@@ -1242,6 +1240,11 @@ static int32_t ETH_PHY_IO_GetTick(void)
 #endif
 
 #if ETH_MULTI_PHY_SUPPORT
+void ethernet_link_changed_register_cb(eth_link_status_cb cb)
+{
+  eth_link_changed_cb = cb;
+}
+
 /**
   * @brief  Check the ETH link state then update ETH driver and netif link accordingly.
   * @param  argument: netif
@@ -1254,8 +1257,8 @@ void ethernet_link_thread(void *argument)
   uint32_t linkchanged = 0U, speed = 0U, duplex = 0U;
 
   struct netif *netif = (struct netif *) argument;
-  struct eth_mac_priv *priv __maybe_unused = heth.priv;
-  struct phy_device *phydev = priv->phy;
+  struct eth_mac_priv *priv __maybe_unused = NULL;
+  struct phy_device *phydev = NULL;
 
   /* ETH_CODE: workaround to call LOCK_TCPIP_CORE when accessing netif link functions*/
   // LOCK_TCPIP_CORE();
@@ -1264,6 +1267,18 @@ void ethernet_link_thread(void *argument)
 
   for(;;)
   {
+    priv = heth.priv;
+    if (!priv) {
+      tkl_system_sleep(200);
+      continue;
+    }
+
+    phydev = priv->phy;
+    if (!phydev) {
+      tkl_system_sleep(200);
+      continue;
+    }
+
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
     // Don't allow eth enters PS until link up
     eth_set_ps_prevent(priv, ETH_PS_PREVENT_LINK_CHECK);
@@ -1275,18 +1290,20 @@ void ethernet_link_thread(void *argument)
     // If link down and skip count remains then try later. Still don't allow eth enter PS
     if (!phydev->link && priv->skip_link_check_count) {
       priv->skip_link_check_count--;
-      rtos_delay_milliseconds(200);
+      tkl_system_sleep(200);
       continue;
     }
 #endif
 
-    if (netif_is_link_up(netif) && !phydev->link) {
-    LWIP_LOGI("ETH link down\n");
-    HAL_ETH_Stop_IT(&heth);
+    if (phydev->last_link && !phydev->link) {
+      LWIP_LOGI("ETH link down\n");
+      HAL_ETH_Stop_IT(&heth);
 
-    // stop dynamic address or static ip address
-    eth_ip_down();  // XXX: netifapi_XXX
-    } else if (!netif_is_link_up(netif) && phydev->link) {
+      if (eth_link_changed_cb)
+      {
+        eth_link_changed_cb(ETH_LINK_DOWN);
+      }
+    } else if (!phydev->last_link && phydev->link) {
       linkchanged = 1;
 
       switch (phydev->duplex) {
@@ -1327,11 +1344,14 @@ void ethernet_link_thread(void *argument)
 #endif
         HAL_ETH_SetMACConfig(&heth, &MACConf);
         HAL_ETH_Start_IT(&heth);
-        netifapi_netif_set_link_up(netif);
 
-        eth_ip_start();   // netifapi_XXX
+        if (eth_link_changed_cb)
+        {
+          eth_link_changed_cb(ETH_LINK_UP);
+        }
       }
     }
+    phydev->last_link = phydev->link;
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
     // allow eth enters PS
@@ -1340,7 +1360,7 @@ void ethernet_link_thread(void *argument)
 
     /* ETH_CODE: workaround to call LOCK_TCPIP_CORE when accessing netif link functions*/
     // UNLOCK_TCPIP_CORE();
-    rtos_delay_milliseconds(200);
+    tkl_system_sleep(200);
     // LOCK_TCPIP_CORE();
   }
 }

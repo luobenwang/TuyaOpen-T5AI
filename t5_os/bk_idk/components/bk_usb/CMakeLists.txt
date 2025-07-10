@@ -100,8 +100,29 @@ if (CONFIG_CHERRY_USB)
 				CherryUSB/class/msc/usbh_msc.c
 			)
 		endif() # CONFIG_USB_MSD
-	endif() # CONFIG_USB_HOST
+
+		if (CONFIG_USB_CDC)
+			list(APPEND srcs
+				CherryUSB/class/cdc/usbh_cdc_acm.c
+			)
+		endif() # CONFIG_USB_CDC
+		if (CONFIG_USBH_SERIAL_CH340)
+			list(APPEND incs
+				bk_usbh_simulate_uart/
+			)
+			list(APPEND srcs
+				bk_usbh_simulate_uart/usbh_ch34x.c
+				bk_usbh_simulate_uart/bk_usbh_simulate_uart_api.c
+			)
+		endif() # CONFIG_USBH_SIMULATE_SERIAL_CH340
+    endif() # CONFIG_USB_HOST
 endif() # CONFIG_CHERRY_USB
+
+if (CONFIG_USB_DEVICE AND CONFIG_USB_HOST)
+	list(APPEND srcs
+		bk_usb_otg_manual_conversion.c
+	)
+endif() # CONFIG_USB_DEVICE && CONFIG_USB_HOST
 
 if (CONFIG_MENTOR_USB)
 	list(APPEND incs
@@ -161,7 +182,17 @@ if (CONFIG_UVC_UAC_DEMO)
 	endif() # CONFIG_MENTOR_USB
 
 endif() # CONFIG_UVC_UAC_DEMO
-endif()
+
+if (CONFIG_USB_CDC_MODEM)
+    list (APPEND incs
+        example/usb_cdc_acm
+    )
+    list (APPEND srcs
+        example/usb_cdc_acm/bk_cherry_usb_cdc_acm_api.c
+    )
+endif() # CONFIG_USB_CDC_MODEM
+
+endif() # CONFIG_USB
 
 if (CONFIG_USB_MAILBOX)
 	list(APPEND incs
@@ -192,7 +223,20 @@ if (CONFIG_ATE_TEST)
 		)
 endif() # CONFIG_ATE
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver)
+# if (CONFIG_SYS_CPU0)
+if (CONFIG_USB_CDC_MODEM)
+    list (APPEND incs
+        example/usb_cdc_acm
+    )
+    list (APPEND srcs
+        example/usb_cdc_acm/bk_usb_cdc_modem.c
+    )
+endif() # CONFIG_USB_CDC_MODEM
+# endif() # CONFIG_SYS_CPU0
+
+
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_modem)
 
 if (CONFIG_MUSB_MHDRC)
 target_compile_definitions(${COMPONENT_LIB}

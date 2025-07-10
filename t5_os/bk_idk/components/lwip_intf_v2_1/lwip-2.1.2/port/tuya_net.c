@@ -4,15 +4,14 @@
 
 #include <lwip/inet.h>
 #include "netif/etharp.h"
-#include <lwip/netif.h>
-#include <lwip/sockets.h>
+#include "lwip/netif.h"
 #include <lwip/netifapi.h>
 #include <lwip/tcpip.h>
 #include <lwip/dns.h>
 #include <lwip/dhcp.h>
 #include "lwip/prot/dhcp.h"
 #include "lwip/apps/mdns.h"
-
+#include "sdkconfig.h"
 #include <lwip/sockets.h>
 #include "wlanif.h"
 #if CONFIG_ETH
@@ -83,7 +82,7 @@ struct ipv4_config br_ip_settings = {
 };
 #endif
 
-// static char up_iface;
+static char up_iface;
 static bool sta_ip_start_flag = false;
 bool uap_ip_start_flag = false;
 #ifdef CONFIG_ETH
@@ -114,6 +113,10 @@ struct iface {
 	ip_addr_t nmask;
 	ip_addr_t gw;
 	const char *name;
+// #if CONFIG_LWIP_PPP_SUPPORT
+	//for ppp
+	void *arg;
+// #endif
 };
 FUNCPTR sta_connected_func;
 
@@ -125,6 +128,11 @@ static struct iface g_eth = {{.name = "e0",}, .name = "eth"};
 #if CONFIG_BRIDGE
 static struct iface g_br = {{.name = "br"}, .name = "br"};
 #endif
+
+// #if CONFIG_LWIP_PPP_SUPPORT
+static struct iface g_ppp = {{0}, .name = "ppp"};
+// #endif
+
 net_sta_ipup_cb_fn sta_ipup_cb = NULL;
 
 extern void *net_get_sta_handle(void);
@@ -174,9 +182,7 @@ char *ipv6_addr_type_to_desc(struct ipv6_config *ipv6_conf)
 
 int net_dhcp_hostname_set(char *hostname)
 {
-#if LWIP_NETIF_HOSTNAME
 	netif_set_hostname(&g_mlan.netif, hostname);
-#endif
 	return 0;
 }
 
@@ -188,7 +194,9 @@ void net_ipv4stack_init(void)
 		return;
 
 	bk_printf("init TCP/IP\r\n");
-	tcpip_init(NULL, NULL);
+	mem_init();
+	memp_init();
+	pbuf_init();
 	tcpip_init_done = true;
 }
 
@@ -415,7 +423,7 @@ void *net_ip_to_interface(uint32_t ipaddr)
 void *net_sock_to_interface(int sock)
 {
 	struct sockaddr_in peer;
-	socklen_t peerlen = sizeof(struct sockaddr_in);
+	unsigned long peerlen = sizeof(struct sockaddr_in);
 	void *req_iface = NULL;
 
 	getpeername(sock, (struct sockaddr *)&peer, &peerlen);
@@ -439,6 +447,13 @@ void *net_get_br_handle(void)
 	return &g_br.netif;
 }
 #endif
+
+// #if CONFIG_LWIP_PPP_SUPPORT, only use in 0
+void *net_get_ppp_netif_handle(void)
+{
+	return &g_ppp.netif;
+}
+// #endif
 
 void *net_get_netif_handle(uint8_t iface)
 {
@@ -485,6 +500,14 @@ void sta_ip_down(void)
 			g_mlan.netif.ip6_addr_state[addr_idx] = IP6_ADDR_INVALID;
 		}
 #endif
+
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+		struct netif *ppp_netif = (struct netif *)net_get_ppp_netif_handle();
+		if (ppp_netif && netif_is_up(ppp_netif)) {
+			netifapi_netif_set_default(ppp_netif);
+		}
+#endif
+
 	}
 #endif
 }
@@ -590,6 +613,14 @@ void ap_set_default_netif(void)
 #endif
 #endif
 #endif
+
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+#if (IP_FORWARD && IP_NAPT)
+	if (netif_is_up(&g_ppp.netif) && netif_is_link_up(&g_ppp.netif))
+		netifapi_netif_set_default(&g_ppp.netif);
+#endif
+#endif
+
 }
 
 void reset_default_netif(void)
@@ -858,7 +889,7 @@ struct ipv4_config* bk_wifi_get_sta_settings(void)
 
 int net_get_if_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 {
-	// const ip_addr_t *tmp;
+	const ip_addr_t *tmp;
 	struct iface *if_handle = (struct iface *)intrfc_handle;
 
 	if (netif_is_up(&if_handle->netif)) {
@@ -1001,10 +1032,10 @@ int net_wlan_add_netif(uint8_t *mac)
 	struct iface *wlan_if = NULL;
 	netif_if_t netif_if;
 	void *vif = NULL;
-	// int vifid = 0;
+	int vifid = 0;
 	err_t err = 0;
 
-	// vifid = wifi_netif_mac_to_vifid(mac);
+	vifid = wifi_netif_mac_to_vifid(mac);
 	vif = wifi_netif_mac_to_vif(mac);
 	netif_if = wifi_netif_vif_to_netif_type(vif);
 	if (netif_if == NETIF_IF_AP) {
@@ -1171,6 +1202,7 @@ int net_eth_start()
 	// Init TCP/IP Stack
 	net_ipv4stack_init();
 
+#if 0
 	// Get ETH MAC address
 	bk_get_mac(mac, MAC_TYPE_ETH);
 
@@ -1204,7 +1236,7 @@ int net_eth_start()
 	if (rtos_create_thread(NULL, BEKEN_APPLICATION_PRIORITY, "eth_link",
 						   ethernet_link_thread, 0x1000, &g_eth.netif))
 		bk_printf("Create eth link thread failed\n");
-
+#endif
 	return 0;
 }
 
@@ -1225,6 +1257,7 @@ void eth_ip_start(void)
 
 void eth_ip_down(void)
 {
+#if 0
 	if (eth_ip_start_flag) {
 		bk_printf("eth ip down\n");
 
@@ -1241,6 +1274,7 @@ void eth_ip_down(void)
 		}
 #endif
 	}
+#endif
 }
 #endif
 

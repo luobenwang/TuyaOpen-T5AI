@@ -357,6 +357,32 @@ dns_init(void)
  * @param numdns the index of the DNS server to set must be < DNS_MAX_SERVERS
  * @param dnsserver IP address of the DNS server to set
  */
+// Modified by TUYA Start
+#ifdef CONFIG_LWIP_PPP_SUPPORT
+void
+dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
+{
+    int i, j;
+    ip_addr_t  tmp_dns_servers[DNS_MAX_SERVERS] = { 0 };
+
+    if (dnsserver == NULL) {
+      return;
+    }
+
+    for (i = 0; i < DNS_MAX_SERVERS; i++) {
+        if (dnsserver->addr == dns_servers[i].addr) {
+          return;
+        }
+    }
+
+    memcpy(tmp_dns_servers, dns_servers, sizeof(tmp_dns_servers));
+
+    for (i = 0, j = 1; i < (DNS_MAX_SERVERS - 1); i++, j++) {
+      dns_servers[j] = tmp_dns_servers[i];
+    }
+    dns_servers[0] = (*dnsserver);
+}
+#else
 void
 dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
 {
@@ -368,6 +394,8 @@ dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
     }
   }
 }
+#endif /* CONFIG_LWIP_PPP_SUPPORT */
+// Modified by TUYA End
 
 /**
  * @ingroup dns

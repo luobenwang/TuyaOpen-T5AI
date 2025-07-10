@@ -10,8 +10,6 @@
 #include "opt.h"
 #include "net.h"
 
-#include "common/bk_generic.h"
-
 #define os_mem_alloc os_malloc
 #define os_mem_free  os_free
 #define SEND_RESPONSE(w,x,y,z)	send_response(w,x,y,z)
@@ -237,7 +235,10 @@ static unsigned int make_response(char *msg, enum dhcp_message_type type)
 #if !IP_NAPT
 		write_u32(opt->value, dhcps.router_ip);
 #else
-		write_u32(opt->value, ip4_addr_get_u32(ip_2_ip4(sta_dns)));
+		if (sta_dns)
+			write_u32(opt->value, ip4_addr_get_u32(ip_2_ip4(sta_dns)));
+		else
+			write_u32(opt->value, dhcps.router_ip);
 #endif
 	}
 	else
@@ -273,7 +274,7 @@ static int send_response(int sock, struct sockaddr *addr, char *msg, int len)
 		nb = lwip_sendto(sock, msg + sent, len - sent, 0, addr,
 			    sizeof(struct sockaddr_in));
 		if (nb < 0) {
-			dhcp_e("failed to send response, addr %p:%d\r\n",
+			dhcp_e("failed to send response, addr %p:%d\r\n", 
 				((struct sockaddr_in *)addr)->sin_addr,
 				((struct sockaddr_in *)addr)->sin_port);
 			return -1;
@@ -384,12 +385,12 @@ static int process_dhcp_message(char *msg, int len)
 			dhcp_d("found DHCP message option\r\n");
 			switch (*(uint8_t *) opt->value) {
 			case DHCP_MESSAGE_DISCOVER:
-				bk_printf("DHCP discover\r\n");
+				LWIP_LOGD("DHCP discover\r\n");
 				response_type = DHCP_MESSAGE_OFFER;
 				break;
 
 			case DHCP_MESSAGE_REQUEST:
-				bk_printf("DHCP request\r\n");
+				LWIP_LOGD("DHCP request\r\n");
 				need_ip = 1;
 				if (hdr->ciaddr != 0x0000000) {
 					dhcps.client_ip = hdr->ciaddr;
@@ -398,7 +399,7 @@ static int process_dhcp_message(char *msg, int len)
 				break;
 
 			default:
-				bk_printf("ignoring message type %d\r\n",
+				LWIP_LOGI("ignoring message type %d\r\n",
 				    *(uint8_t *) opt->value);
 				break;
 			}
@@ -406,8 +407,8 @@ static int process_dhcp_message(char *msg, int len)
 		if (opt->type == BOOTP_OPTION_REQUESTED_IP && opt->length == 4) {
 			dhcp_d("found REQUESTED IP option %hhu.%hhu.%hhu.%hhu\r\n",
 			    (uint8_t)opt->value[0],
-			    (uint8_t)opt->value[1],
-			    (uint8_t)opt->value[2],
+			    (uint8_t)opt->value[1], 
+			    (uint8_t)opt->value[2], 
 			    (uint8_t)opt->value[3]);
 			memcpy((uint8_t *) &dhcps.client_ip, (uint8_t *) opt->value, 4);
 			got_client_ip = 1;
@@ -472,9 +473,9 @@ static int process_dhcp_message(char *msg, int len)
         int send_byte;
     	struct bootp_header *hdr;
         if (response_type == DHCP_MESSAGE_OFFER)
-			bk_printf("ap:DHCP should send offer\r\n");
+			LWIP_LOGI("ap:DHCP should send offer\r\n");
 		else if (response_type == DHCP_MESSAGE_ACK)
-			bk_printf("ap:DHCP should send ack\r\n");
+			LWIP_LOGI("ap:DHCP should send ack\r\n");
 		send_byte = make_response(msg, (enum dhcp_message_type)response_type);
         hdr = (struct bootp_header *)msg;
 
@@ -512,7 +513,7 @@ static int process_dhcp_message(char *msg, int len)
             if(++retry == 3)
                 break;
         }
-
+        
 		if (response_type == DHCP_MESSAGE_ACK)
 			send_gratuitous_arp(dhcps.my_ip);
 		return 0;
@@ -526,7 +527,7 @@ static void dhcp_clean_sockets(void)
 {
 	int ret;
 
-	if (dhcps.sock != -1)
+	if (dhcps.sock != -1) 
 	{
 		ret = lwip_close(dhcps.sock);
 		if (ret != 0) {
@@ -534,7 +535,7 @@ static void dhcp_clean_sockets(void)
 		}
 		dhcps.sock = -1;
 	}
-
+	
 	if ( dhcp_nack_dns_server_handler )
 	{
 		if ( dhcps.dnssock != -1 )
@@ -547,7 +548,7 @@ static void dhcp_clean_sockets(void)
 			dhcps.dnssock = -1;
 		}
 	}
-
+	
 	if ( dhcps.ctrlsock != -1 )
 	{
 	    ret = lwip_close(dhcps.ctrlsock);
@@ -692,7 +693,7 @@ int dhcp_server_init(void *intrfc_handle)
 
 	get_broadcast_addr(&dhcps.baddr);
 	dhcps.baddr.sin_port = htons(DHCP_CLIENT_PORT);
-
+    
     get_broadcast_addr(&dhcps.uaddr);
 	dhcps.uaddr.sin_port = htons(DHCP_CLIENT_PORT);
 
@@ -707,7 +708,7 @@ int dhcp_server_init(void *intrfc_handle)
 		ret = -1;
 		goto out;
 	}
-
+    
     if (get_gateway_from_interface(&dhcps.router_ip, intrfc_handle) < 0) {
 		dhcp_e("failed to look up our netmask from interface\r\n");
 		ret = -1;
@@ -759,9 +760,9 @@ int dhcp_server_init(void *intrfc_handle)
 	}
 
     dhcps.prv = intrfc_handle;
-
+    
 	dhcps.current_ip = ntohl(dhcps.my_ip & dhcps.netmask) | ((99) & ntohl(~dhcps.netmask));
-    //bk_printf("[abc] %x, %x, %x\r\n", dhcps.current_ip, dhcps.my_ip, dhcps.router_ip);
+    //LWIP_LOGI("[abc] %x, %x, %x\r\n", dhcps.current_ip, dhcps.my_ip, dhcps.router_ip);
 
 	return 0;
 
@@ -781,7 +782,7 @@ static int send_ctrl_msg(const char *msg)
 {
 	int ret;
 
-	ret = lwip_sendto(dhcps.ctrlsock, msg, os_strlen(msg)+1, 0,
+	ret = lwip_sendto(dhcps.ctrlsock, msg, os_strlen(msg)+1, 0, 
 		(struct sockaddr *)&dhcps.ctrladdr, sizeof(struct sockaddr_in));
 
 	return ret;
@@ -797,7 +798,7 @@ int dhcp_send_halt(void)
 	    dhcp_w("Failed to send HALT: %d.\r\n", ret);
 		return -1;
 	}
-
+	
 	ret = dhcp_free_allocations();
 
 	return ret;
@@ -839,8 +840,8 @@ static int send_gratuitous_arp(uint32_t ip)
 	memset(pkt.targ_hw_addr, 0xff, ETH_HW_ADDR_LEN);
 	memset(pkt.rcpt_hw_addr, 0xff, ETH_HW_ADDR_LEN);
     get_mac_addr_from_interface((void*)pkt.sndr_hw_addr, dhcps.prv);
-    get_mac_addr_from_interface((void*)pkt.src_hw_addr, dhcps.prv);
-
+    get_mac_addr_from_interface((void*)pkt.src_hw_addr, dhcps.prv);   
+    
 	sock = lwip_socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		dhcp_e("Could not open socket to send Gratuitous ARP\r\n");
@@ -901,7 +902,7 @@ uint8_t* dhcp_lookup_mac(uint8_t *chaddr)
 		    (dhcps.ip_mac_mapping[i].client_mac[5] == chaddr[5])) {
 
             ip.s_addr = dhcps.ip_mac_mapping[i].client_ip;
-
+ 
 			return (uint8_t*)inet_ntoa(ip);
 		}
 	}

@@ -23,6 +23,11 @@ typedef enum {
     TKL_WIRED_LINK_UP,          ///< the network cable is plugged and IP is got
 }TKL_WIRED_STAT_E;
 
+typedef enum {
+    TKL_WIRED_SPI = 0,
+    TKL_WIRED_RMII,
+}TKL_WIRED_DEV_TYPE_E;
+
 /**
  * @brief callback function: WIRED_STATUS_CHANGE_CB
  *        when wired connect status changed, notify tuyaos
@@ -32,15 +37,45 @@ typedef enum {
  */
 typedef void (*TKL_WIRED_STATUS_CHANGE_CB)(TKL_WIRED_STAT_E status);
 
+typedef struct wired_rmii_s {
+    TUYA_GPIO_NUM_E  int_gpio;
+    TUYA_GPIO_NUM_E  mdc_gpio;
+    TUYA_GPIO_NUM_E  mdio_gpio;
+    TUYA_GPIO_NUM_E  rxd0_gpio;
+    TUYA_GPIO_NUM_E  rxd1_gpio;
+    TUYA_GPIO_NUM_E  rxdv_gpio;
+    TUYA_GPIO_NUM_E  txd0_gpio;
+    TUYA_GPIO_NUM_E  txd1_gpio;
+    TUYA_GPIO_NUM_E  txen_gpio;
+    TUYA_GPIO_NUM_E  ref_clk_gpio;
+} TKL_WIRED_RMII_GPIO_CFG_T;
+
+typedef struct wired_spi_s {
+    TUYA_GPIO_NUM_E int_gpio;   ///< gpio number of SPI wired's interrupt
+} TKL_WIRED_SPI_GPIO_CFG_T;
+
 typedef struct {
     TUYA_GPIO_NUM_E int_gpio;   ///< gpio number of SPI wired's interrupt
 }TKL_WIRED_BASE_CFG_T;
+
+/* tuya sdk definition of wired ioctl cmd */
+typedef enum {
+    WIRED_IOCTL_GPIO_CFG,
+} WIRED_IOCTL_CMD_E;
+
+typedef struct {
+    TKL_WIRED_DEV_TYPE_E dev_type;
+    union {
+        TKL_WIRED_RMII_GPIO_CFG_T rmii;
+        TKL_WIRED_SPI_GPIO_CFG_T spi;
+    };
+} WIRED_IOCTL_GPIO_T;
 
 /**
  * @brief  init create wired link
  *
  * @param[in]   cfg: the configure for wired link
- * 
+ *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
  */
 OPERATE_RET tkl_wired_init(TKL_WIRED_BASE_CFG_T *cfg);
@@ -64,8 +99,8 @@ OPERATE_RET tkl_wired_get_status(TKL_WIRED_STAT_E *status);
 OPERATE_RET tkl_wired_set_status_cb(TKL_WIRED_STATUS_CHANGE_CB cb);
 
 /**
- * @brief  set the ip address of the wired link, used for set the static ipaddress 
- * 
+ * @brief  set the ip address of the wired link, used for set the static ipaddress
+ *
  * @param[in]   ip: the ip address
  *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
@@ -75,7 +110,7 @@ OPERATE_RET tkl_wired_set_ip(NW_IP_S *ip);
 
 /**
  * @brief  get the ip address of the wired link
- * 
+ *
  * @param[in]   ip: the ip address
  *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
@@ -84,7 +119,7 @@ OPERATE_RET tkl_wired_get_ip(NW_IP_S *ip);
 
 /**
  * @brief  get the ip address of the wired link
- * 
+ *
  * @param[in]   ip: the ip address
  *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
@@ -93,7 +128,7 @@ OPERATE_RET tkl_wired_get_ipv6(NW_IP_TYPE type, NW_IP_S *ip);
 
 /**
  * @brief  get the mac address of the wired link
- * 
+ *
  * @param[in]   mac: the mac address
  *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
@@ -102,12 +137,21 @@ OPERATE_RET tkl_wired_get_mac(NW_MAC_S *mac);
 
 /**
  * @brief  set the mac address of the wired link
- * 
+ *
  * @param[in]   mac: the mac address
  *
  * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
  */
 OPERATE_RET tkl_wired_set_mac(const NW_MAC_S *mac);
+
+/**
+ * @brief wired ioctl
+ *
+ * @param[in]       cmd     refer to WIRED_IOCTL_CMD_E
+ * @param[in]       args    args associated with the command
+ * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
+ */
+OPERATE_RET tkl_wired_ioctl(WIRED_IOCTL_CMD_E cmd,  VOID *args);
 
 
 #ifdef __cplusplus

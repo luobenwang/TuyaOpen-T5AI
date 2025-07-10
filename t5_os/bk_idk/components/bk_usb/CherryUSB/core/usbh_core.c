@@ -115,6 +115,11 @@ static const struct usbh_class_driver *usbh_find_class_driver(uint8_t class, uin
             if (index->vid == vid && index->pid == pid && index->class == class) {
                 return index->class_driver;
             }
+        } else if ((index->match_flags & (USB_CLASS_MATCH_INTF_CLASS | USB_CLASS_MATCH_INTF_SUBCLASS)) == 
+                   (USB_CLASS_MATCH_INTF_CLASS | USB_CLASS_MATCH_INTF_SUBCLASS)) {
+            if (index->class == class && index->subclass == subclass) {
+                return index->class_driver;
+            }
         } else if (index->match_flags & (USB_CLASS_MATCH_INTF_CLASS)) {
             if (index->class == class) {
                 return index->class_driver;
@@ -534,6 +539,13 @@ int usbh_enumerate(struct usbh_hubport *hport)
                  ((struct usb_device_descriptor *)ep0_request_buffer)->idProduct,
                  ((struct usb_device_descriptor *)ep0_request_buffer)->bcdDevice);
 
+    USB_LOG_ERR("bDescriptorType:%d,bcdUSB:%d,bDeviceClass:%d,bDeviceSubClass:%d,bDeviceProtocol:%d,iManufacturer:%d,iSerialNumber:%d,iProduct:%d\r\n", \
+        ((struct usb_device_descriptor *)ep0_request_buffer)->bDescriptorType, \
+        ((struct usb_device_descriptor *)ep0_request_buffer)->bcdUSB, ((struct usb_device_descriptor *)ep0_request_buffer)->bDeviceClass,\
+        ((struct usb_device_descriptor *)ep0_request_buffer)->bDeviceSubClass, ((struct usb_device_descriptor *)ep0_request_buffer)->bDeviceProtocol,\
+        ((struct usb_device_descriptor *)ep0_request_buffer)->iManufacturer, ((struct usb_device_descriptor *)ep0_request_buffer)->iSerialNumber,\
+        ((struct usb_device_descriptor *)ep0_request_buffer)->iProduct);
+
     // Modified by TUYA Start
     if (usbh_enum_cb) {
         usbh_enum_cb(((struct usb_device_descriptor *)ep0_request_buffer)->idVendor,
@@ -657,59 +669,60 @@ int usbh_enumerate(struct usbh_hubport *hport)
 
     USB_LOG_DBG("Enumeration success, start loading class driver\r\n");
     /*search supported class driver*/
-#if (1)//(CONFIG_STANDARD_DUALSTREAM)
-        for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
-            intf_desc = &hport->config.intf[i].altsetting[0].intf_desc;
-    
-            struct usbh_class_driver *class_driver = (struct usbh_class_driver *)usbh_find_class_driver(intf_desc->bInterfaceClass, intf_desc->bInterfaceSubClass, intf_desc->bInterfaceProtocol, hport->device_desc.idVendor, hport->device_desc.idProduct);
-    
-            if (class_driver == NULL) {
-                USB_LOG_DBG("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
-                            intf_desc->bInterfaceClass,
-                            intf_desc->bInterfaceSubClass,
-                            intf_desc->bInterfaceProtocol);
-    
-                continue;
-            }
-            hport->config.intf[i].class_driver = class_driver;
-            USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
-        }
+#if (CONFIG_USB_CDC_MODEM)
+    for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
+        intf_desc = &hport->config.intf[i].altsetting[0].intf_desc;
 
-        // Modified by TUYA Start
-        if (hport->config.intf[0].class_driver == NULL) {
-            bk_printf("--- hport->config.intf[0].class_driver is NULL\r\n");
-            goto errout;
-        }
-        // Modified by TUYA End
+        struct usbh_class_driver *class_driver = (struct usbh_class_driver *)usbh_find_class_driver(intf_desc->bInterfaceClass, intf_desc->bInterfaceSubClass, intf_desc->bInterfaceProtocol, hport->device_desc.idVendor, hport->device_desc.idProduct);
 
-        ret = CLASS_CONNECT(hport, 0);
+        if (class_driver == NULL) {
+            USB_LOG_DBG("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
+                        intf_desc->bInterfaceClass,
+                        intf_desc->bInterfaceSubClass,
+                        intf_desc->bInterfaceProtocol);
+
+            continue;
+        }
+        hport->config.intf[i].class_driver = class_driver;
+        USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
+        ret = CLASS_CONNECT(hport, i);
         if (ret < 0) {
-            ret = CLASS_DISCONNECT(hport, 0);
+            ret = CLASS_DISCONNECT(hport, i);
             goto errout;
         }
+    }
+#else
 
-//#else
-//    for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
-//        intf_desc = &hport->config.intf[i].altsetting[0].intf_desc;
-//
-//        struct usbh_class_driver *class_driver = (struct usbh_class_driver *)usbh_find_class_driver(intf_desc->bInterfaceClass, intf_desc->bInterfaceSubClass, intf_desc->bInterfaceProtocol, hport->device_desc.idVendor, hport->device_desc.idProduct);
-//
-//        if (class_driver == NULL) {
-//            USB_LOG_DBG("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
-//                        intf_desc->bInterfaceClass,
-//                        intf_desc->bInterfaceSubClass,
-//                        intf_desc->bInterfaceProtocol);
-//
-//            continue;
-//        }
-//        hport->config.intf[i].class_driver = class_driver;
-//        USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
-//        ret = CLASS_CONNECT(hport, i);
-//        if (ret < 0) {
-//            ret = CLASS_DISCONNECT(hport, i);
-//            goto errout;
-//        }
-//    }
+    for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
+        intf_desc = &hport->config.intf[i].altsetting[0].intf_desc;
+
+        struct usbh_class_driver *class_driver = (struct usbh_class_driver *)usbh_find_class_driver(intf_desc->bInterfaceClass, intf_desc->bInterfaceSubClass, intf_desc->bInterfaceProtocol, hport->device_desc.idVendor, hport->device_desc.idProduct);
+
+        if (class_driver == NULL) {
+            USB_LOG_DBG("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
+                        intf_desc->bInterfaceClass,
+                        intf_desc->bInterfaceSubClass,
+                        intf_desc->bInterfaceProtocol);
+
+            continue;
+        }
+        hport->config.intf[i].class_driver = class_driver;
+        USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
+    }
+
+    // Modified by TUYA Start
+    if (hport->config.intf[0].class_driver == NULL) {
+        bk_printf("--- hport->config.intf[0].class_driver is NULL\r\n");
+        goto errout;
+    }
+    // Modified by TUYA End
+
+    ret = CLASS_CONNECT(hport, 0);
+    if (ret < 0) {
+        ret = CLASS_DISCONNECT(hport, 0);
+        goto errout;
+    }
+
 #endif
 
 

@@ -21,6 +21,7 @@
 #include "tkl_ipc.h"
 #include "netif.h"
 #include "netif/ethernet.h"
+#include "lwip/ethernetif.h"
 
 #include "tkl_thread.h"
 #include "tkl_memory.h"
@@ -37,6 +38,8 @@ static TKL_QUEUE_HANDLE send_queue = NULL;
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern int ke_l2_packet_tx(unsigned char *buf, int len, int flag);
+extern void *net_get_ppp_netif_handle(void);
+extern err_t ethernetif_tx_sender(struct netif *netif, struct pbuf *p);
 
 static struct pbuf *__lwip_send_pbuf_copy(struct pbuf *p)
 {
@@ -105,12 +108,18 @@ void tkl_lwip_ipc_func(struct ipc_msg_s *msg)
 
 extern void *net_get_sta_handle(void);
 extern void *net_get_uap_handle(void);
+extern void *net_get_eth_handle(void);
+
 struct netif *tkl_lwip_get_netif_by_index(int net_if_idx)
 {
     if(net_if_idx == 0)
         return net_get_sta_handle();
     else if(net_if_idx == 1)
         return net_get_uap_handle();
+    else if(net_if_idx == 2)
+        return net_get_eth_handle();
+    else if(net_if_idx == 3)
+        return net_get_ppp_netif_handle();
 
     return NULL;
 }
@@ -123,12 +132,20 @@ static void low_level_init(struct netif *netif)
         id = 0;
     }else if(strncmp(netif->name, "r1", 2) == 0) {
         id = 1;
+    }else if(strncmp(netif->name, "r2", 2) == 0) {
+        id = 0;
+        // ethernetif_init(netif);
+        // return;
     }else {
         bk_printf("netif->name error %c  %c!\r\n", netif->name[0],netif->name[1]);
         return;
     }
 
     tkl_wifi_get_mac((const WF_IF_E)id, (NW_MAC_S *)macptr);
+
+    if(strncmp(netif->name, "r2", 2) == 0) {
+        macptr[5] += 3;
+    }
 
     /* set MAC hardware address length */
     bk_printf("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
@@ -186,6 +203,12 @@ OPERATE_RET tkl_ethernetif_output(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
 {
     int ret;
     err_t err = ERR_OK;
+    struct netif *pnetif = netif;
+    if(strncmp(pnetif->name, "r2", 2) == 0) {
+        ret = ethernetif_tx_sender(netif, p);
+        goto output_over;
+    }
+
     uint8_t vif_idx = wifi_netif_vif_to_vifid(((struct netif *)netif)->state);
     // Sanity check
     if (vif_idx == 0xff)
@@ -214,6 +237,8 @@ OPERATE_RET tkl_ethernetif_output(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
         // tuya_ipc_send_sync(&lwip_ipc_msg);
 
     }
+
+output_over:
     if(0 != ret)
     {
         err = ERR_TIMEOUT;
@@ -248,6 +273,18 @@ OPERATE_RET tkl_ethernetif_recv(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
         return ret;
 
     return lwip_ipc_msg.ret_value;
+}
+
+void ethernetif_recv_in_eth(TKL_NETIF_HANDLE netif, TKL_PBUF_HANDLE p)
+{
+    if(!netif) {
+        //bk_printf("ethernetif_input no netif found %d\r\n", iface);
+        goto end;
+    }
+    tkl_ethernetif_recv(netif, p);
+end:
+    pbuf_free(p);
+    p = NULL;
 }
 
 void ethernetif_input(int iface, struct pbuf *p, int dst_idx)
@@ -335,7 +372,7 @@ forward:
     }
 #endif
 
-// process:
+process:
     switch (htons(ethhdr->type))
     {
 #if 0

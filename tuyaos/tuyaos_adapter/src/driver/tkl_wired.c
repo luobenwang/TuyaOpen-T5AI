@@ -14,12 +14,8 @@
 
 #if CONFIG_SPI_ETH
 TKL_WIRED_STATUS_CHANGE_CB spi_netif_link_chg_cb = NULL;
-extern unsigned char spi_netif_link_status;
 extern TKL_WIRED_BASE_CFG_T spi_eth_cfg;
 #endif /* CONFIG_SPI_ETH */
-
-#define IPADDR2STR(ip) (unsigned char)(ip & 0xFF), (unsigned char)((ip >> 8) & 0xFF), \
-        (unsigned char)((ip >> 16) & 0xFF), (unsigned char)((ip >> 24) & 0xFF)
 
 /**
  * @brief  init create wired link
@@ -54,13 +50,20 @@ OPERATE_RET tkl_wired_get_status(TKL_WIRED_STAT_E *status)
 {
 #if CONFIG_SPI_ETH    
     struct netif *netif;
+    uint32_t ip;
+    uint32_t mask;
+    uint32_t gw;
 
     netif = (struct netif *)net_get_spi_eth_handle();
     if (NULL == netif) {
          return OPRT_COM_ERROR;
     }
 
-    if (netif_is_link_up(netif)) {
+    ip = netif->ip_addr.addr;
+    mask = netif->netmask.addr;
+    gw = netif->gw.addr;
+
+    if (netif_is_up(netif) && ip && mask && gw) {
          *status = TKL_WIRED_LINK_UP;
     } else {
          *status = TKL_WIRED_LINK_DOWN;
@@ -82,10 +85,6 @@ OPERATE_RET tkl_wired_set_status_cb(TKL_WIRED_STATUS_CHANGE_CB cb)
 {
 #if CONFIG_SPI_ETH     
     spi_netif_link_chg_cb = cb;
-
-    if (spi_netif_link_chg_cb && spi_netif_link_status) {
-        spi_netif_link_chg_cb(TKL_WIRED_LINK_UP);
-    }
 #endif /* CONFIG_SPI_ETH */
     return OPRT_OK;
 }
@@ -169,27 +168,4 @@ OPERATE_RET tkl_wired_get_mac(NW_MAC_S *mac)
 OPERATE_RET tkl_wired_set_mac(const NW_MAC_S *mac)
 {
     return OPRT_NOT_SUPPORTED;
-}
-
-/**
- * @brief  set wired link as default netif
- * 
- * @param[enable]   enable: set eth as default netif
- *
- * @return OPRT_OK on success. Others on error, please refer to tuya_error_code.h
- */
-OPERATE_RET tkl_wired_set_default_net(BOOL_T enable)
-{
-#if CONFIG_SPI_ETH
-    struct netif *netif;
-    if (enable) {
-        netif = net_get_spi_eth_handle();
-    } else {
-        netif = net_get_sta_handle();
-    }
-    if (netif) {
-        netifapi_netif_set_default(netif);
-    }
-#endif
-    return OPRT_OK;
 }

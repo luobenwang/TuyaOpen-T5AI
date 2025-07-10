@@ -1493,7 +1493,13 @@ static void usbh_tx_irq_handler(    uint8_t ep_idx, struct musb_pipe *pipe, stru
                     urb->errorcode = 0;
                     musb_pipe_waitup(pipe);
                 } else {
-                    if(urb->transfer_buffer) {
+                    if(urb->transfer_buffer)
+					{
+						if(size > urb->transfer_buffer_length) {
+							size = urb->transfer_buffer_length;
+						} else {
+							size = pipe->ep_mps;
+						}
                         musb_write_packet(ep_idx, urb->transfer_buffer, size);
                     }
 #if CONFIG_USB_DMA_ENABLE

@@ -122,15 +122,16 @@ void bk_usb_uvc_uac_free_enumerate_resources()
 	bk_usbh_video_unregister_dev();
 	bk_usbh_audio_unregister_dev();
 
+#if (CONFIG_USB_CDC_MODEM)
 	if(uvc_uac_device->usb_driver->hport->raw_config_desc)
 	{
 		uint8_t *raw_config_desc = uvc_uac_device->usb_driver->hport->raw_config_desc;
 		uvc_uac_device->usb_driver->hport->raw_config_desc = NULL;
 		os_free(raw_config_desc);
 	}
-
-	s_uvc_uac_device->n_uvc_dev = 0;
-	s_uvc_uac_device->a_uvc_dev = 0;
+#endif
+    s_uvc_uac_device->n_uvc_dev = 0;
+    s_uvc_uac_device->a_uvc_dev = 0;
 
 }
 
@@ -858,7 +859,7 @@ bk_err_t bk_uvc_start(void)
 	uint32_t idx_uvc = 0;
 	{
 		struct usbh_video *uvc_device = uvc_uac_device->uvc_dev[idx_uvc];
-#if !CONFIG_USB_MAILBOX
+#if 0 //!CONFIG_USB_MAILBOX
 		bk_usb_driver_task_lock_mutex();
 		bk_usbh_video_start_handle(uvc_device);
 		bk_usb_driver_task_unlock_mutex();
@@ -901,7 +902,7 @@ bk_err_t bk_uvc_dual_start(void)
 	uint32_t idx_uvc = (n_uvc_dev - 1);
 	struct usbh_video *uvc_device = uvc_uac_device->uvc_dev[idx_uvc];
 	//bk_usb_drv_send_msg(USB_DRV_VIDEO_DUAL_START, (void *)uvc_device);
-#if !CONFIG_USB_MAILBOX
+#if 0 //!CONFIG_USB_MAILBOX
 	bk_usb_driver_task_lock_mutex();
 	bk_usbh_video_start_dual_handle(uvc_device);
 	bk_usb_driver_task_unlock_mutex();
@@ -1333,10 +1334,16 @@ void bk_usbh_video_stop_handle(struct usbh_video *uvc_device)
 {
 	if(!uvc_device)
 		return;
-
 	USB_DRIVER_LOGD("[+]%s\r\n",__func__);
+
+	uint32_t idx_uvc = 0;
 	bk_uvc_uac_fusion_device *uvc_uac_device = s_uvc_uac_device;
-	usbh_video_close(uvc_device);
+	for (idx_uvc = 0; idx_uvc < (uvc_uac_device->n_uvc_dev); idx_uvc++)
+	{
+		struct usbh_video *uvc_device = uvc_uac_device->uvc_dev[idx_uvc];
+		usbh_video_close(uvc_device);
+	}
+
 	bk_uvc_video_clear(uvc_uac_device);
 
 	USB_DRIVER_LOGD("[-]%s\r\n",__func__);
